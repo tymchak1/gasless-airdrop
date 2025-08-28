@@ -14,8 +14,7 @@ contract ClaimAirdrop is Script {
     bytes32 PROOF_TWO = 0xe5ebd1e1b5a5478a944ecab36a9a954ac3b6b8216875f6524caa7a1d87096576;
     bytes32[] proof = [PROOF_ONE, PROOF_TWO];
 
-    // get my signature
-    // permit with it
+    // your signature
     bytes private SIGNATURE = hex"";
 
     function run() external {

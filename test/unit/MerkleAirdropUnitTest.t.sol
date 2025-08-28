@@ -46,21 +46,95 @@ contract MerkleAirdropUnitTest is Test {
         assertEq(airdrop.getMerkleRoot(), ROOT);
         assertEq(address(airdrop.getAirdropToken()), address(token));
     }
+
     /*//////////////////////////////////////////////////////////////
                            CLAIM TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testUsersCanClaim() public {
-        uint256 startingBalance = token.balanceOf(user);
-        bytes32 digest = airdrop.getMessageHash(user, AMOUNT_TO_CLAIM);
+    function testClaimWithPermit() public {
+        token.mint(address(airdrop), AMOUNT_TO_SEND);
 
-        vm.prank(user);
+        uint256 nonce = token.nonces(user);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                user,
+                address(airdrop),
+                AMOUNT_TO_CLAIM,
+                nonce,
+                deadline
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivKey, digest);
 
-        vm.prank(gasPayer);
-        airdrop.claim(user, AMOUNT_TO_CLAIM, PROOF, v, r, s);
+        vm.prank(user);
+        airdrop.claimWithPermit(user, AMOUNT_TO_CLAIM, PROOF, deadline, v, r, s);
 
-        uint256 endingBalance = token.balanceOf(user);
-        assertEq(endingBalance - startingBalance, AMOUNT_TO_CLAIM);
+        assertEq(token.balanceOf(user), AMOUNT_TO_CLAIM);
+        assertTrue(airdrop.s_hasClaimed(user));
+    }
+
+    function testClaimTwiceReverts() public {
+        uint256 nonce = token.nonces(user);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                user,
+                address(airdrop),
+                AMOUNT_TO_CLAIM,
+                nonce,
+                deadline
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivKey, digest);
+
+        // перший клейм
+        vm.prank(user);
+        airdrop.claimWithPermit(user, AMOUNT_TO_CLAIM, PROOF, deadline, v, r, s);
+
+        // другий клейм має впасти
+        vm.prank(user);
+        vm.expectRevert(MerkleAirdrop.MerkleAirdrop__AlreadyClaimed.selector);
+        airdrop.claimWithPermit(user, AMOUNT_TO_CLAIM, PROOF, deadline, v, r, s);
+    }
+
+    function testClaimRevertsWithInvalidProof() public {
+        uint256 nonce = token.nonces(user);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                user,
+                address(airdrop),
+                AMOUNT_TO_CLAIM,
+                nonce,
+                deadline
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivKey, digest);
+
+        bytes32[] memory badProof = new bytes32[](1);
+        badProof[0] = keccak256("wrong");
+
+        vm.prank(user);
+        vm.expectRevert(MerkleAirdrop.MerkleAirdrop__InvalidProof.selector);
+        airdrop.claimWithPermit(user, AMOUNT_TO_CLAIM, badProof, deadline, v, r, s);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           GETTER TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function testGetMerkleRoot() public view {
+        assertEq(airdrop.getMerkleRoot(), ROOT);
+    }
+
+    function testGetAirdropToken() public view {
+        assertEq(address(airdrop.getAirdropToken()), address(token));
     }
 }

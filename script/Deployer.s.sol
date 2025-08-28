@@ -6,7 +6,7 @@ import {MerkleAirdrop} from "../src/MerkleAirdrop.sol";
 import {Token} from "../src/Token.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Deployer is Script {
+contract DeployMerkleAirdrop is Script {
     bytes32 private s_merkleRoot = 0xaa5d581231e596618465a56aa0f5870ba6e20785fe436d5bfb82b08662ccc7c4;
     uint256 private s_amountToTransfer = 4 * 25 * 1e18;
 
